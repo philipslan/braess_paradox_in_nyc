@@ -1,4 +1,6 @@
+from datetime import datetime
 import json
+import string
 
 class TrafficEntry:
 
@@ -18,7 +20,7 @@ class TrafficEntry:
         self.fromSt = dataEntry[11]
         self.toSt = dataEntry[12]
         self.direction = dataEntry[13]
-        self.date = dataEntry[14]
+        self.date = datetime.strptime(string.rstrip(dataEntry[14], "T00:00:00"), "%Y-%m-%d")
         self.traffic = []
         for i in range(15, 39):
             self.traffic.append(float(dataEntry[i]))
@@ -34,6 +36,6 @@ def main():
             zeroEntries.append(e)
 
     for e in zeroEntries:
-        print e.roadName, e.traffic
+        print e.date
 
 main()
