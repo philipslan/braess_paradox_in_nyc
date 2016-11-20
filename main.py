@@ -28,14 +28,28 @@ class TrafficEntry:
 def main():
     rawData = open('nyc_street_data.json')
     data = json.load(rawData)
-    zeroEntries = []
+    zeroEntries = set([])
+    zeroDates = set([])
 
+    # Find all entries that have 0 traffic at some point in the day
     for entry in data:
         e = TrafficEntry(entry)
         if 0.0 in e.traffic:
-            zeroEntries.append(e)
+            zeroEntries.add(e)
 
+    # Find all dates at which at least 1 road has 0 traffic at some point in the day
     for e in zeroEntries:
-        print e.date
+        if e.date not in zeroDates:
+            zeroDates.add(e.date)
+
+    # Find number of traffic entries for each zeroDate
+    for date in zeroDates:
+        entries = set([])
+        for entry in data:
+            e = TrafficEntry(entry)
+            if date == e.date:
+                entries.add(e)
+
+        print date, len(entries)
 
 main()
