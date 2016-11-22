@@ -1,11 +1,9 @@
+import pickle, googlemaps, time, string, json, os, math
+from pprint import pprint
 from datetime import datetime
-import json
-import string
 
 class TrafficEntry:
-
     def __init__(self, dataEntry):
-
         self.metaSid = dataEntry[0]
         self.metaID = dataEntry[1]
         self.metaPosition = dataEntry[2]
@@ -22,34 +20,90 @@ class TrafficEntry:
         self.direction = dataEntry[13]
         self.date = datetime.strptime(string.rstrip(dataEntry[14], "T00:00:00"), "%Y-%m-%d")
         self.traffic = []
+        self.lat = None
+        self.long = None
         for i in range(15, 39):
             self.traffic.append(float(dataEntry[i]))
 
-def main():
+class ZeroDay:
+    def __init__(self, entry):
+        self.day = entry
+
+
+def save(dObj, sFilename):
+  """Given an object and a file name, write the object to the file using pickle."""
+  f = open(sFilename, "w")
+  p = pickle.Pickler(f)
+  p.dump(dObj)
+  f.close()
+
+def load(sFilename):
+  """Given a file name, load and return the object stored in the file."""
+  f = open(sFilename, "r")
+  u = pickle.Unpickler(f)
+  dObj = u.load()
+  f.close()
+  return dObj
+
+def getAndCleanData():
     rawData = open('nyc_street_data.json')
     data = json.load(rawData)
-    zeroEntries = set([])
-    zeroDates = set([])
-
     # Find all entries that have 0 traffic at some point in the day
-    for entry in data:
-        e = TrafficEntry(entry)
-        if 0.0 in e.traffic:
-            zeroEntries.add(e)
+    traffic_data = [TrafficEntry(entry) for entry in data]
+    zeroEntries = [entry for entry in traffic_data if 0.0 in entry.traffic]
+    zeroDates = set(entry.date for entry in zeroEntries)
+    # instantiated google maps key
+    key = os.environ['NEW_GMAPS_KEY']
+    gmaps = googlemaps.Client(key=key)
+    # get all streets for each zero date
+    zeroDatesToStreets = {date : set() for date in zeroDates}
+    streetData = {}
+    count = 0
+    for entry in traffic_data:
+        if entry.date in zeroDatesToStreets:
+            zeroDatesToStreets[entry.date].add(entry)
+            from_st_string = entry.roadName + " and " + entry.fromSt + " NY"
+            to_st_string = entry.roadName + " and " + entry.toSt + " NY"
+            intersection_string = from_st_string + " " + to_st_string
+            if intersection_string not in streetData:
+                if (count%50 == 0) and count != 0:
+                    print "sleeping"
+                    time.sleep(1)
+                    print "slept"
+                from_st_loc = gmaps.geocode(from_st_string)
+                to_st_loc = gmaps.geocode(to_st_string)
+                count += 2
+                loc1 = from_st_loc[0]['geometry']['location']
+                loc2 = to_st_loc[0]['geometry']['location']
+                entry.lat = (loc1['lat'] + loc2['lat']) / 2
+                entry.long = (loc1['lng'] + loc2['lng']) / 2
+                streetData[intersection_string] = {'lat':entry.lat, 'long':entry.long}
+            else:
+                entry.lat = streetData[intersection_string]['lat']
+                entry.long = streetData[intersection_string]['long']
+    save(traffic_data, 'traffic_data.pickle')
+    save(zeroEntries, 'zeroEntries.pickle') 
+    save(zeroDatesToStreets, 'zeroDatesToStreets.pickle')
 
-    # Find all dates at which at least 1 road has 0 traffic at some point in the day
-    for e in zeroEntries:
-        if e.date not in zeroDates:
-            zeroDates.add(e.date)
+def find_distance(first, second):
+    lat = first.lat - second.lat
+    lng = first.long - second.long
+    return math.sqrt((lat*lat) + (lng*lng))
 
-    # Find number of traffic entries for each zeroDate
-    for date in zeroDates:
-        entries = set([])
-        for entry in data:
-            e = TrafficEntry(entry)
-            if date == e.date:
-                entries.add(e)
+def calculateDistances():
+    traffic_data = load('traffic_data.pickle')
+    zeroDatesToStreets = load('zeroDatesToStreets.pickle')
+    zeroEntries = load('zeroEntries.pickle')
+    scores = {}
+    for entry in zeroEntries:
+        corresponding_day_data = zeroDatesToStreets[entry.date]
+        score = 0
+        for val in corresponding_day_data:
+            dist = find_distance(entry, val)
+            if dist != 0:
+                score += sum(val.traffic) / dist
+        scores[entry] = score
+    pprint(scores)
 
-        print date, len(entries)
-
-main()
+# getAndCleanData()
+calculateDistances()
