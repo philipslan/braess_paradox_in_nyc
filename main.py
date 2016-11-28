@@ -97,13 +97,17 @@ def calculateDistances():
     scores = {}
     for entry in zeroEntries:
         corresponding_day_data = zeroDatesToStreets[entry.date]
-        score = 0
-        for val in corresponding_day_data:
-            dist = find_distance(entry, val)
-            if dist != 0:
-                score += sum(val.traffic) / dist
+        score = calculateScore(entry, corresponding_day_data)
         scores[entry] = score
     pprint(scores)
+
+def calculateScore(entry, corresponding_day_data):
+    score = 0.0
+    for val in corresponding_day_data:
+        dist = find_distance(entry, val)
+        if dist != 0.0:
+            score += sum(val.traffic) /dist
+    return score
 
 # getAndCleanData()
 calculateDistances()
