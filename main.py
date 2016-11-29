@@ -90,24 +90,50 @@ def find_distance(first, second):
     lng = first.long - second.long
     return math.sqrt((lat*lat) + (lng*lng))
 
-def calculateDistances():
+def main():
     traffic_data = load('traffic_data.pickle')
     zeroDatesToStreets = load('zeroDatesToStreets.pickle')
     zeroEntries = load('zeroEntries.pickle')
     scores = {}
+    locations = set([])
+    # collect scores for zeroEntries
     for entry in zeroEntries:
         corresponding_day_data = zeroDatesToStreets[entry.date]
-        score = calculateScore(entry, corresponding_day_data)
-        scores[entry] = score
-    pprint(scores)
+        zero_time_intervals = [index for index, time_traffic in enumerate(entry.traffic) if time_traffic == 0.0]
+        score, other_locations = calculateScore(entry, corresponding_day_data, zero_time_intervals)
+        scores[entry] = ({"score": score, "time_intervals": zero_time_intervals, "other_locations": other_locations})
+        locations |= (set([val["segmentID"] for val in other_locations]))
+    # collect score for rest of data
+    locationData = {location: [] for location in locations}
+    for row in traffic_data:
+        if row.segmentID in locations:    
+            locationData[row.segmentID].append(row)
+    # score location for each entry
+    for key, val in scores.iteritems():
+        score = 0.0
+        for location in val["other_locations"]:
+            corresponding_entries = locationData[location["segmentID"]]
+            entry_score = 0.0
+            for entry in corresponding_entries:
+                entry_score += sum([entry.traffic[index] for index in val["time_intervals"]])
+            score += entry_score / (len(corresponding_entries) * location["distance"])
+        val["avg_score"] = score
+    avg_differntial = 0
+    for key,score in scores.iteritems():
+        avg_differntial += score["avg_score"] - score["score"]
+    print float(avg_differntial) / len(score.keys())
 
-def calculateScore(entry, corresponding_day_data):
+
+def calculateScore(entry, corresponding_day_data, zero_time_intervals):
     score = 0.0
+    other_locations = []
     for val in corresponding_day_data:
         dist = find_distance(entry, val)
         if dist != 0.0:
-            score += sum(val.traffic) /dist
-    return score
+            other_locations.append({"segmentID": val.segmentID, "distance": dist})
+            score += sum([val.traffic[index] for index in zero_time_intervals]) / dist
+    return score, other_locations
 
-# getAndCleanData()
-calculateDistances()
+if __name__ == "__main__":
+    # getAndCleanData()
+    main()
