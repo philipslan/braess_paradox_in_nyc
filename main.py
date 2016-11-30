@@ -118,10 +118,8 @@ def main():
                 entry_score += sum([entry.traffic[index] for index in val["time_intervals"]])
             score += entry_score / (len(corresponding_entries) * location["distance"])
         val["avg_score"] = score
-    avg_differntial = 0
     for key,score in scores.iteritems():
-        avg_differntial += score["avg_score"] - score["score"]
-    print float(avg_differntial) / len(score.keys())
+        print "score:", score["score"], "avg_score:", score["avg_score"], "diff:", score["avg_score"] - score["score"]
 
 
 def calculateScore(entry, corresponding_day_data, zero_time_intervals):
@@ -133,6 +131,10 @@ def calculateScore(entry, corresponding_day_data, zero_time_intervals):
             other_locations.append({"segmentID": val.segmentID, "distance": dist})
             score += sum([val.traffic[index] for index in zero_time_intervals]) / dist
     return score, other_locations
+
+def dumpJsonOfZeroData(scores):
+    with open('zeroPoints.json', 'w') as outfile:
+        json.dump([{"lat": score.lat, "long": score.long, "roadName": score.fromSt + " to " + score.toSt + " on " + score.roadName} for score in scores], outfile)
 
 if __name__ == "__main__":
     # getAndCleanData()
